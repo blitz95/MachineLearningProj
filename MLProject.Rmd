@@ -1,0 +1,228 @@
+---
+title: "ML Project - Predicting Quality of Execution using Human Activity Recognition Data"
+author: "blitz95"
+date: "October 3, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Coursera Machine Learning
+###Prediction Assignment Writeup
+
+####Background
+A large amount of data about personal activity relatively is now capable of being collected inexpensively.  This data is regularly used to quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants predict whether the exercise was performed correctly or in one of 5 incorrect ways.
+
+Participants, 6 healthy males between the ages of 20-28 years old, were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions:
+
+* Class A - correctly performed 
+* Class B - throwing the elbows to the front
+* Class C - lifting the dumbbell only halfway
+* Class D - lowering the dumbbell only halfway
+* Class E - throwing the hips to the front
+
+####Objective
+The objectives of the project are:
+
+* Build a model and document the process for building the model using features and cross-validation to predict the classe variable, which describes the fashion in which the exercise was performed.
+* Calculate the out of sample error on the model chosen
+* Use the model to predict 20 test cases
+
+####Required packages
+caret
+randomForest
+gbm
+
+####Data used as dictated in projects directions
+Training Data
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Test Data
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+####Preparation of Data
+Data was downloaded into the current working directory
+
+#####Traing and validation set creation
+
+> pmlData <- read.csv("pml-training.csv")  
+> str(pmlData)
+
+Showed that the data was a data frame which consisted of 19622 obs. of  160 variables
+A review of the data indictated that a number of the factors contained a substantial number of NAs or a significant lack of data. Additionally, a review of the documentation describing the Velosso, 2013 study, which indicated that specific measurements comprised of complete sets of data were determined to be the top predictors. I decided to eliminate the variables containing incomplete sets of data to focus on the variables that were comprised of complete sets of data. 
+
+I reloaded the data using 
+
+> pmlData <- read.csv("pml-training.csv", na.strings = c("NA"," ","#DIV/0!"))
+
+I identified the columns with  NAs and eliminated those columns from the dataframe.
+
+> NACols <- which(colSums(is.na(pmlData)) > 0)  
+> pmlData2 <- pmlDataredo[,-c(NACols)]  
+
+The resulting data frame had the following structure: 19622 obs. of  60 variables
+
+Based on review of the data in columns 1 through 7 and the information in the earlier review of the Velloso, 2013 study, I determined that columns 1 through 7 contained data that was not useful for prediction.  I eliminated those columns as well creating a data subset with the following subset
+
+> pmlDataSub <- pmlDataSub[ , -(1:7)]
+
+resulting in a dataframe of 59 variables and 19622 observations.
+
+I created a table of the classe variable to determine the frequency of the variable.
+
+> table(pmlDataSub$classe)
+
+* A 5580
+* B 3797 
+* C 3422
+* D 3216
+* E 3607
+
+
+###Model Creation
+
+I evaluated random forest and trees with boosting type models considering the models individually with no preprocessing, with PCA preprocessing, and stacked models with a combination of individual models using accuracy of resulting predictions to evaluate models.  I created models using a subset of the training data and then evaulated the accuracy on the model on a validation/testing set of the training data set. The highest accuracy representing the lowest out of sample error was used to select the best prediction model.
+
+####Data Partition
+
+I created a training and validation/test set from the training data provided to allow me to estimate out of sample error for model comparison.
+
+> inTrain <- createDataPartition(y = pmlDataSub$classe, p = 0.75, list = FALSE)  
+> training <- pmlDataSub[inTrain, ]  
+> testing <- pmlDataSub[-inTrain,]  
+
+####Preprocessing Attempts
+
+Since the selection of feature is more important than the algorithms chosen, I made an attempt to investigate preprocessing.  In the Veloso, 2013 study, the team developed a very set of prediciton variables by attempting a number of techniques.  I made a simplistic attempt using a 70% threshold using the principle components analysis, PCAm  presented in class to see if there was any combination of features that might present additional prediction variables that would result in a model which had a higher level of accuracy than the models using the untransformed variables. 
+
+> PreProc <- preProcess(pmlDataSub[,-53], method="pca", preProcOptions = list(thresh=0.70))
+
+The result from the analysis was that PCA needed 25 components to capture 95 percent of the variance
+
+###Model Development and Testing
+
+Based on the review of previous studies for classification and the advantage of accuracy for classification problems I selected an random forest model.  However, since random forest models are prone to overfittting, I also selected a boosting model.  The gbm, boosting with trees, model was recommended in class to provide a predictor for a large number of possibly week predictors.  I then took a combination of those models and tried to combine them using glm and rf methods. 
+
+I chose cross validation with 6 folds and set train control as follows for the random forest (rf) method and the boosting with trees (gbm) method.  
+
+> train_control <- trainControl(method="cv", number = 6)
+
+Based on the review of previous studies for classification and the advantage of accuracy for classification problems I selected an random forest model.  However, since random forest models are prone to overfittting, I also selected a boosting model.  The gbm, boosting with trees, model was recommended in class to provide a predictor for a large number of possibly week predictors.  I then took a combination of those models and tried to combine them using glm and rf methods.  
+
+The top  variables of importance for each were
+
+ Random Forest   
+
+* roll_belt            100.000
+* pitch_forearm         56.909
+* yaw_belt              53.014
+* magnet_dumbbell_z     44.642
+* pitch_belt            42.937
+
+GBM 
+
+* roll_belt         100.000
+* pitch_forearm      50.098
+* yaw_belt           38.280
+* magnet_dumbbell_z  29.722
+* magnet_dumbbell_y  23.721
+
+
+I used the following R functions with the following accuracy results:
+
+###Random Forest Method (rf)
+####Training
+> modelFitRF <- train(classe ~., method = "rf", data=training, trControl=train_control)  
+> confusionMatrix(predict(modelFitRF, training), training$classe)  
+
+Accuracy = 1
+
+The results suggest overfitting to the training data.  When applied to the testing data using the following function. 
+
+
+####Testing
+> confusionMatrix(predict(modelFitRF, newdata = testing), testing$classe)  
+
+Accuracy = 0.9937
+
+###Boosting with Trees Method (gbm)
+####Training
+> modelGBM <- train(classe ~., method = "gbm", data=training, trControl=train_control)  
+> confusionMatrix(predict(modelGBM), training$classe)
+
+Accuracy = 0.9742
+
+When applied to the testing data using the following function
+
+
+####Testing
+> confusionMatrix(predict(modelGBM, newdata = testing), testing$classe)
+
+Accuracy = 0.9639
+
+###Individual Models Using PCA Treatment Applied to Test Data
+
+Based on the result of the PCA analysis I used the features resulting from the PCA analysis to fit a gbm model.
+
+##### Random Forest Method (rf)
+
+> modelFitRF <- train(classe ~., method = "rf", data=training)
+> confusionMatrix(modelFitRF, testing)
+
+Accuracy = 
+
+####Boosting with Trees Method (gbm)
+
+> modelGBM <- train(classe ~., method = "gbm", data=training)
+> confusionMatrix(modelGBM, testing)
+
+Accuracy = 0.8281  
+
+This model did not result in a high level of accuracy compared to the individual models. 
+
+###Combining Prediction Models
+To evaluate the combination of the rf model. I used the following functions
+
+Created predictions on testing data
+
+> predRF <- predict(modelFitRF, testing)    
+> predGBM <- predict(modelGBM, testing) 
+
+Combined the two models andt he classe variable in a data frame
+> predDF <- data.frame(predRF, predGBM, classe = testing$classe)
+
+I attempted to combine the models using the random forest method and the gbm method with the following result for both.
+
+> combModFitRF <- train(classe ~., method = "rf", data=predDF)
+> combPredRF <- predict(combModFitRF, predDF))  
+> confusionMatrix(combPredRF, testing$classe)  
+
+
+> combModFitGBM <- train(classe ~., method = "gbm", data=predDF)
+> combPredGBM <- predict(combModFitGBM, predDF))  
+> confusionMatrix(combPredGBM, testing$classe)
+
+Accuracy = 0.9937
+
+Using these simplistic combinations, the accuracy of prediciton on the test data was not improved beyond that of the random forest model.
+
+###Conclusion
+
+While the random forest model does have a tendency to overfit training data, it still provided the best prediction on the validation/test data.
+
+In-sample error = 1 - Accuracy(training - data) = 0
+
+Out-of-Sample error = 1- Accuracy(test-data) = 0.6%
+
+
+The commands resulting in the random forest model are contained in the "MLProjectCode" file.
+
+References:
+
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+T
