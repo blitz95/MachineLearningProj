@@ -2,6 +2,6 @@
 Repository for Coursera Machine Learning Project
 ##To view the MLProjectCode.html file:  
 
-Copy and paste the following link in the address bar of a new window  
+Click on the following link:  
 
 https://cdn.rawgit.com/blitz95/MachineLearningProj/master/MLProjectCode.html
